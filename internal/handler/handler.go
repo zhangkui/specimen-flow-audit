@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"github.com/zhangkui/specimen-flow-audit/internal/pipeline"
 	"github.com/zhangkui/specimen-flow-audit/internal/service"
 	"github.com/zhangkui/specimen-flow-audit/internal/waveform"
 )
@@ -24,6 +25,21 @@ func New(app *service.Service) http.Handler {
 		}
 		writer.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(writer).Encode(quality)
+	})
+	mux.HandleFunc("POST /pipeline/run", func(writer http.ResponseWriter, request *http.Request) {
+		defer request.Body.Close()
+		var input pipeline.Request
+		if err := json.NewDecoder(request.Body).Decode(&input); err != nil {
+			http.Error(writer, err.Error(), http.StatusBadRequest)
+			return
+		}
+		result, err := app.Run(input)
+		if err != nil {
+			http.Error(writer, err.Error(), http.StatusUnprocessableEntity)
+			return
+		}
+		writer.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(writer).Encode(result)
 	})
 	mux.HandleFunc("GET /traces/{station}", func(writer http.ResponseWriter, request *http.Request) {
 		quality, err := app.Latest(request.PathValue("station"))

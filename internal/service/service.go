@@ -1,6 +1,7 @@
 package service
 
 import (
+	"github.com/zhangkui/specimen-flow-audit/internal/pipeline"
 	"github.com/zhangkui/specimen-flow-audit/internal/report"
 	"github.com/zhangkui/specimen-flow-audit/internal/store"
 	"github.com/zhangkui/specimen-flow-audit/internal/waveform"
@@ -22,4 +23,13 @@ func (s *Service) Latest(station string) (report.Quality, error) {
 		return report.Quality{}, err
 	}
 	return report.Build(trace), nil
+}
+
+func (s *Service) Run(request pipeline.Request) (pipeline.Result, error) {
+	result, err := pipeline.Run(request)
+	if err != nil {
+		return pipeline.Result{}, err
+	}
+	s.store.Save(result.Trace)
+	return result, nil
 }
