@@ -116,11 +116,11 @@ func (c *Coordinator) Submit(ctx context.Context, request SubmitRequest) (Comple
 	c.alerts = append(c.alerts, alerts...)
 	c.mu.Unlock()
 	c.baseline.Add(result.Quality)
-	for index, item := range alerts {
+	for _, item := range alerts {
 		if item.Level != alert.Critical {
 			continue
 		}
-		id := fmt.Sprintf("%s-%02d", request.JobID, index+1)
+		id := fmt.Sprintf("%s:%s", item.Station, item.Code)
 		_ = c.incidents.Open(incident.Incident{ID: id, Station: item.Station, Severity: item.Level, OpenedAt: item.At, Notes: []string{item.Code + ": " + item.Detail}})
 		_ = c.reviews.Create(review.Task{ID: id, JobID: request.JobID, Station: item.Station, Alert: item, CreatedAt: request.SubmittedAt})
 		c.notices.Queue(id, "seismic-ops@"+item.Station, item, request.SubmittedAt)
