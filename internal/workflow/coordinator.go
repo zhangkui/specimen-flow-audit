@@ -120,7 +120,12 @@ func (c *Coordinator) Submit(ctx context.Context, request SubmitRequest) (Comple
 		if item.Level != alert.Critical {
 			continue
 		}
-		id := fmt.Sprintf("%s:%s", item.Station, item.Code)
+		// The business identity of a severe alert must be scoped per job: two
+		// distinct jobs that trip the same rule at the same station are separate
+		// incidents/reviews/notifications. Including JobID keeps them independent,
+		// while a repeat delivery of the same job resolves to the same id and is
+		// handled idempotently by the register/queue/outbox.
+		id := fmt.Sprintf("%s:%s:%s", request.JobID, item.Station, item.Code)
 		_ = c.incidents.Open(incident.Incident{ID: id, Station: item.Station, Severity: item.Level, OpenedAt: item.At, Notes: []string{item.Code + ": " + item.Detail}})
 		_ = c.reviews.Create(review.Task{ID: id, JobID: request.JobID, Station: item.Station, Alert: item, CreatedAt: request.SubmittedAt})
 		c.notices.Queue(id, "seismic-ops@"+item.Station, item, request.SubmittedAt)

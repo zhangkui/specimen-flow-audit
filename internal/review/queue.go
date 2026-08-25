@@ -12,6 +12,7 @@ import (
 var (
 	ErrNotFound  = errors.New("review task not found")
 	ErrCompleted = errors.New("review task completed")
+	ErrExists    = errors.New("review task already exists")
 )
 
 type State string
@@ -45,6 +46,9 @@ func (q *Queue) Create(task Task) error {
 	}
 	q.mu.Lock()
 	defer q.mu.Unlock()
+	if _, ok := q.tasks[task.ID]; ok {
+		return ErrExists
+	}
 	task.State = Pending
 	q.tasks[task.ID] = task
 	return nil

@@ -39,12 +39,21 @@ type Register struct {
 }
 
 func New() *Register { return &Register{entries: make(map[string]Incident)} }
+// ErrAlreadyExists is reported by Open when an incident with the same id is
+// already registered. The caller treats this as idempotent success: a repeat
+// delivery of the same job must not reset an incident that operators may
+// already have acknowledged or resolved.
+var ErrAlreadyExists = errors.New("incident already exists")
+
 func (r *Register) Open(item Incident) error {
 	if item.ID == "" || item.Station == "" || item.OpenedAt.IsZero() {
 		return errors.New("invalid incident")
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if _, ok := r.entries[item.ID]; ok {
+		return ErrAlreadyExists
+	}
 	item.State = Open
 	item.Notes = append([]string(nil), item.Notes...)
 	r.entries[item.ID] = item
