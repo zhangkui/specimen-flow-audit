@@ -27,7 +27,20 @@ func New() *Outbox { return &Outbox{messages: make(map[string]Message)} }
 func (o *Outbox) Queue(id, recipient string, item alert.Alert, at time.Time) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	o.messages[id] = Message{ID: id, Station: item.Station, Recipient: recipient, Subject: item.Code, Body: item.Detail, CreatedAt: at.UTC()}
+	// A message already sent must not be re-queued: upstream retries of the same
+	// critical alert would otherwise reset SentAt and resurface it as pending,
+	// causing duplicate notifications. Only new or still-unsent messages may
+	// enter the pending queue.
+	existing, ok := o.messages[id]
+	if ok && !existing.SentAt.IsZero() {
+		// Already sent — keep its sent state; do not re-queue on retry.
+		return
+	}
+	attempts := 0
+	if ok {
+		attempts = existing.Attempts
+	}
+	o.messages[id] = Message{ID: id, Station: item.Station, Recipient: recipient, Subject: item.Code, Body: item.Detail, CreatedAt: at.UTC(), Attempts: attempts}
 }
 func (o *Outbox) MarkSent(id string, at time.Time) bool {
 	o.mu.Lock()
