@@ -75,14 +75,19 @@ func (c *Coordinator) Submit(ctx context.Context, request SubmitRequest) (Comple
 	if request.JobID == "" || request.SubmittedAt.IsZero() {
 		return Completed{}, errors.New("job id and submit time are required")
 	}
-	if _, exists := c.ledger.Get(request.JobID); exists {
+	// Atomically reserve the job id in the ledger. This is the single
+	// commit point: the first request to create the entry proceeds, and
+	// any concurrent request for the same JobID observes an existing job
+	// and returns a duplicate error without overwriting the winner's
+	// station, rule version, or completion state.
+	if !c.ledger.Submit(ledger.Job{ID: request.JobID, Station: request.Station, SubmittedAt: request.SubmittedAt}) {
 		return Completed{}, ErrDuplicateJob
 	}
 	profile, err := c.stations.Get(request.Station)
 	if err != nil {
+		c.ledger.Finish(request.JobID, request.SubmittedAt, err)
 		return Completed{}, fmt.Errorf("station profile: %w", err)
 	}
-	c.ledger.Submit(ledger.Job{ID: request.JobID, Station: request.Station, SubmittedAt: request.SubmittedAt})
 	c.timeline.Add(audit.Entry{ID: request.JobID + ":submitted", Subject: request.JobID, Action: "submitted", Actor: "ingest", At: request.SubmittedAt, Detail: request.Station})
 	version, err := c.rules.Active(request.Station, request.Start)
 	if err != nil {

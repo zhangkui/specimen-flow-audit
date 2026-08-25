@@ -31,11 +31,19 @@ type Ledger struct {
 }
 
 func New() *Ledger { return &Ledger{jobs: make(map[string]Job)} }
-func (l *Ledger) Submit(job Job) {
+
+// Submit atomically reserves the job id: the first caller creates the job,
+// any concurrent caller for the same id observes an existing job and returns
+// false without overwriting the winner's station or submission time.
+func (l *Ledger) Submit(job Job) bool {
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	if _, exists := l.jobs[job.ID]; exists {
+		return false
+	}
 	job.State = Received
 	l.jobs[job.ID] = job
+	return true
 }
 func (l *Ledger) Start(id, version string, at time.Time) bool {
 	l.mu.Lock()
