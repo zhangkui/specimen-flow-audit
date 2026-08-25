@@ -10,8 +10,9 @@ import (
 )
 
 var (
-	ErrNotFound = errors.New("incident not found")
-	ErrClosed   = errors.New("incident is closed")
+	ErrNotFound       = errors.New("incident not found")
+	ErrClosed         = errors.New("incident is closed")
+	ErrNotAcknowledged = errors.New("incident must be acknowledged before it can be resolved")
 )
 
 type State string
@@ -78,6 +79,9 @@ func (r *Register) Resolve(id, note string, at time.Time) (Incident, error) {
 	}
 	if item.State == Resolved {
 		return item, nil
+	}
+	if item.State != Acknowledged {
+		return Incident{}, ErrNotAcknowledged
 	}
 	item.State = Resolved
 	item.ResolvedAt = at.UTC()
